@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Taquería La Vanesa</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      display: flex;
+      height: 100vh;
+      margin: 0;
+      background-color: #f8f9fa;
+    }
+    .sidebar {
+      width: 200px;
+      background-color: #343a40;
+      color: white;
+      padding-top: 1rem;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .sidebar button {
+      width: 95%;
+      margin-bottom: 0.5rem;
+      text-align: center;
+      background-color: #5e6265;
+      border-color: #5e6265;
+    }
+    .content {
+      flex-grow: 1;
+      padding: 2rem;
+      overflow-y: auto;
+    }
+    .table thead {
+      background-color: #ffc107;
+    }
+    .table-container {
+      margin-top: 1rem;
+    }
+    .welcome {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .filter-group {
+      max-width: 700px;
+      margin: 0 auto;
+      margin-bottom: 3rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Menú lateral -->
+  <div class="sidebar">
+    <h2> Taquería</h2>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarInicio()">Inicio</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Tacos')">Tacos</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Postres')">Postres</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Bebidas')">Bebidas</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Combos')">Combos</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Empleados')">Empleados</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Inventario')">Inventario</button>
+    <button type="button" class="btn btn-outline-light" onclick="formularioPedido()">Nuevo Pedido</button>
+    <button type="button" class="btn btn-outline-light" onclick="mostrarTabla('Pedidos')">Pedidos</button>
+  </div>
+
+  <div class="card shadow mt-4"></div>
+
+  <!-- Contenido principal -->
+  <div class="content" id="contenido">
+    <!-- Aquí se cargará el contenido dinámicamente -->
+  </div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const contenedor = document.getElementById("contenido");   
+    let pedidoActual = {
+      productos: [], // { id, producto, descripcion, precio, tabla, cantidad }
+      total: 0,
+      nombreCliente: '' 
+    };
+
+    // Estado global del pedido
+ 
+
+    // Mostrar pantalla de bienvenida
+    function mostrarInicio() {
+      contenedor.innerHTML = `
+        <div class="welcome">
+          <h1 class="text-danger mb-4">¡Bienvenido a la Taquería!</h1>
+          <p class="lead">Selecciona una tabla a la izquierda o realiza una consulta personalizada.</p>
+        </div>
+      `;
+    }
+
+    // Mostrar tabla con datos, botones para CRUD y botón para agregar al pedido si aplica
+    async function mostrarTabla(nombreTabla) {
+      try {
+        const respuesta = await fetch(`http://localhost:3000/api/${nombreTabla}`);
+        if (!respuesta.ok) throw new Error(`Error al cargar la tabla ${nombreTabla}: ${respuesta.status}`);
+
+        const datos = await respuesta.json();
+        if (!Array.isArray(datos)) throw new Error(`Datos inválidos para la tabla ${nombreTabla}`);
+
+        const columnas = datos.length > 0 ? Object.keys(datos[0]) : [];
+
+        // Construir tabla HTML
+        let html = `
+          <h2 class="mb-3">Tabla: ${nombreTabla}</h2>
+          <button type="button" class="btn btn-success mb-3" onclick="mostrarFormularioNuevo('${nombreTabla}')">Agregar nuevo</button>
+          <table class="table table-bordered table-striped">
+            <thead><tr>${columnas.map(col => `<th>${col}</th>`).join("")}<th>Acciones</th>${(nombreTabla === 'Tacos' || nombreTabla === 'Combos' || nombreTabla === 'Bebidas' || nombreTabla === 'Postres') ? '<th>Agregar</th>' : ''}</tr></thead>
+            <tbody>
+              ${datos.map(fila => `
+                <tr>
+                  ${columnas.map(col => `<td>${fila[col]}</td>`).join("")}
+                  <td>
+                    <button type="button" class="btn btn-sm btn-warning me-1" onclick="editarRegistro('${nombreTabla}', ${fila.id})">Editar</button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarRegistro('${nombreTabla}', ${fila.id})">Eliminar</button>
+                  </td>
+                  ${ (nombreTabla === 'Tacos' || nombreTabla === 'Combos' || nombreTabla === 'Bebidas' || nombreTabla === 'Postres') ? `
+                    <td>
+                      <button class="btn btn-sm btn-primary" onclick="agregarProductoAPedido(${fila.id}, '${nombreTabla}')">Agregar</button>
+                    </td>
+                  ` : ''}
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <button class="btn btn-info mt-3" onclick="formularioPedido()">Ver Pedido (${pedidoActual.productos.length} productos)</button>
+        `;
+
+        contenedor.innerHTML = html;
+      } catch (error) {
+        contenedor.innerHTML = `<p class="text-danger">${error.message}</p>`;
+        console.error(error);
+      }
+    }
+
+    // Agregar producto a pedido desde tabla productos
+    async function agregarProductoAPedido(id, tabla) {
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`);
+        if (!res.ok) throw new Error(`No se pudo obtener producto id=${id} de ${tabla}`);
+
+        const producto = await res.json();
+
+        let prod = {};
+        if (tabla === 'Combos') {
+          prod = {
+            id: producto.id,
+            producto: producto.NOMBRE,
+            descripcion: producto.PRODUCTOS || '',
+            precio: parseFloat(producto.PRECIO),
+            tabla,
+            cantidad: 1
+          };
+        } else {
+          prod = {
+            id: producto.id,
+            producto: producto.PRODUCTO,
+            descripcion: producto.DESCRIPCION || '',
+            precio: parseFloat(producto.PRECIO),
+            tabla,
+            cantidad: 1
+          };
+        }
+
+        // Verificar si ya existe y sumar cantidad
+        const idx = pedidoActual.productos.findIndex(p => p.id === prod.id && p.tabla === prod.tabla);
+        if (idx >= 0) {
+          pedidoActual.productos[idx].cantidad += 1;
+        } else {
+          pedidoActual.productos.push(prod);
+        }
+
+        pedidoActual.total = pedidoActual.productos.reduce((acc, p) => acc + p.precio * p.cantidad, 0);
+
+        formularioPedido(pedidoActual);
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    // Mostrar formulario para crear nuevo registro
+    async function mostrarFormularioNuevo(tabla) {
+      contenedor.innerHTML = `
+        <h2 class="mb-3">Agregar nuevo a ${tabla}</h2>
+        <form id="form-nuevo" onsubmit="guardarNuevo('${tabla}', event)">
+          <div id="campos-dinamicos"></div>
+          <button type="submit" class="btn btn-success">Guardar</button>
+          <button type="button" class="btn btn-secondary ms-2" onclick="mostrarTabla('${tabla}')">Cancelar</button>
+        </form>
+      `;
+
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}`);
+        if (!res.ok) throw new Error(`Error al obtener estructura de ${tabla}`);
+
+        const data = await res.json();
+        const campos = document.getElementById("campos-dinamicos");
+        if (data.length > 0) {
+          Object.keys(data[0]).forEach(col => {
+            if (col !== "id") {
+              campos.innerHTML += `
+                <div class="mb-3">
+                  <label class="form-label">${col}</label>
+                  <input type="text" class="form-control" name="${col}" required />
+                </div>
+              `;
+            }
+          });
+        }
+      } catch (error) {
+        contenedor.innerHTML = `<p class="text-danger">${error.message}</p>`;
+        console.error(error);
+      }
+    }
+
+    // Guardar nuevo registro POST
+    async function guardarNuevo(tabla, event) {
+      event.preventDefault();
+      const form = event.target;
+      const datos = {};
+
+      Array.from(form.elements).forEach(el => {
+        if (el.name) {
+          datos[el.name] = el.value.trim();
+        }
+      });
+
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datos),
+        });
+
+        if (!res.ok) throw new Error(`Error al agregar registro: ${res.status}`);
+
+        mostrarTabla(tabla);
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    // Editar registro: mostrar formulario con datos existentes
+    async function editarRegistro(tabla, id) {
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`);
+        if (!res.ok) throw new Error(`Registro no encontrado o error: ${res.status}`);
+
+        const registro = await res.json();
+
+        contenedor.innerHTML = `
+          <h2 class="mb-3">Editar registro de ${tabla}</h2>
+          <form id="form-editar" onsubmit="guardarEdicion('${tabla}', ${id}, event)">
+            <div id="campos-edicion"></div>
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            <button type="button" class="btn btn-secondary ms-2" onclick="mostrarTabla('${tabla}')">Cancelar</button>
+          </form>
+        `;
+
+        const campos = document.getElementById("campos-edicion");
+        Object.entries(registro).forEach(([col, val]) => {
+          if (col !== "id") {
+            campos.innerHTML += `
+              <div class="mb-3">
+                <label class="form-label">${col}</label>
+                <input type="text" class="form-control" name="${col}" value="${val}" required />
+              </div>
+            `;
+          }
+        });
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    // Guardar edición PATCH
+    async function guardarEdicion(tabla, id, event) {
+      event.preventDefault();
+      const form = event.target;
+      const datos = {};
+
+      Array.from(form.elements).forEach(el => {
+        if (el.name) {
+          datos[el.name] = el.value.trim();
+        }
+      });
+
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datos),
+        });
+
+        if (!res.ok) throw new Error(`Error al actualizar: ${res.status}`);
+
+        mostrarTabla(tabla);
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    // Eliminar registro DELETE
+    async function eliminarRegistro(tabla, id) {
+      if (!confirm(`¿Seguro que quieres eliminar el registro ${id} de la tabla ${tabla}?`)) return;
+
+      try {
+        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`, {
+          method: "DELETE",
+        });
+
+        if (!res.ok) throw new Error(`Error al eliminar: ${res.status}`);
+
+        mostrarTabla(tabla);
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    console.log('Estado de pedidoActual:', pedidoActual);
+
+
+    // Mostrar formulario de pedido con productos agregados y total
+    function formularioPedido(pedido = { productos: [], total: 0, nombreCliente: '' }) {
+      pedidoActual = pedido;
+
+      if (pedidoActual.productos.length === 0) {
+        contenedor.innerHTML = `
+          <h2>Nuevo Pedido</h2>
+          <p>No has agregado productos al pedido.</p>
+          <button class="btn btn-primary" onclick="mostrarTabla('Tacos')">Agregar productos</button>
+        `;
+        return;
+      }
+
+      let tablaProductosHTML = `
+        <table class="table table-bordered">
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio</th></tr></thead>
+          <tbody>
+      `;
+
+      pedidoActual.productos.forEach(p => {
+        tablaProductosHTML += `
+          <tr>
+            <td>${p.producto}</td>
+            <td>${p.cantidad}</td>
+            <td>$${(p.precio * p.cantidad).toFixed(2)}</td>
+          </tr>
+        `;
+      });
+
+      tablaProductosHTML += `
+          </tbody>
+        </table>
+      `;
+
+      contenedor.innerHTML = `
+        <h2>Nuevo Pedido</h2>
+        <form id="form-pedido" onsubmit="guardarPedido(event)">
+          <div class="mb-3">
+            <label class="form-label">Nombre cliente</label>
+            <input type="text" name="nombreCliente" class="form-control" required value="${pedidoActual.nombreCliente || ''}" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Productos agregados</label>
+            ${tablaProductosHTML}
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Total: $<span id="totalPedido">${pedidoActual.total.toFixed(2)}</span></label>
+          </div>
+          <button type="submit" class="btn btn-primary">Finalizar Pedido</button>
+          <button type="button" class="btn btn-secondary ms-2" onclick="mostrarTabla('Tacos')">Seguir agregando</button>
+          <button type="button" class="btn btn-warning ms-2" onclick="cancelarPedido()">Cancelar Pedido</button>
+        </form>
+      `;
+    }
+
+    // Guardar pedido POST
+    async function guardarPedido(event) {
+      event.preventDefault();
+      const form = event.target;
+      const nombreCliente = form.nombreCliente.value.trim();
+
+      if (pedidoActual.productos.length === 0) {
+        alert("No hay productos en el pedido");
+        return;
+      }
+
+      if (!nombreCliente) {
+        alert("El nombre del cliente es obligatorio");
+        return;
+      }
+
+      const pedidoParaEnviar = {
+        codigo_cliente: generarCodigoCliente(),
+        productos: JSON.stringify(pedidoActual.productos.map(p => ({
+          producto: p.producto,
+          cantidad: p.cantidad,
+          precio: p.precio
+        }))),
+        total: pedidoActual.total,
+        fecha: new Date().toISOString(),
+        nombreCliente: nombreCliente
+      };
+
+      try {
+        const res = await fetch('http://localhost:3000/api/Pedidos', {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pedidoParaEnviar),
+        });
+
+        if (!res.ok) throw new Error(`Error al guardar pedido: ${res.status}`);
+
+        alert("Pedido guardado correctamente");
+        pedidoActual = { productos: [], total: 0, nombreCliente: '' };
+        mostrarTabla('Tacos'); // Volver al inicio para agregar más productos
+      } catch (error) {
+        alert(error.message);
+        console.error(error);
+      }
+    }
+
+    // Cancelar pedido (limpiar y volver a tabla)
+    function cancelarPedido() {
+      if (confirm("¿Deseas cancelar el pedido actual? Se perderán los productos agregados.")) {
+        pedidoActual = { productos: [], total: 0, nombreCliente: '' };
+        mostrarInicio();
+      }
+    }
+
+
+    // Generar código de cliente
+    function generarCodigoCliente() {
+  return 'C' + Math.floor(Math.random() * 1000000);
+}
+
+
+    // Exponer funciones al scope global para botones inline
+    window.mostrarTabla = mostrarTabla;
+    window.agregarProductoAPedido = agregarProductoAPedido;
+    window.formularioPedido = formularioPedido;
+    window.guardarPedido = guardarPedido;
+    window.mostrarFormularioNuevo = mostrarFormularioNuevo;
+    window.guardarNuevo = guardarNuevo;
+    window.editarRegistro = editarRegistro;
+    window.guardarEdicion = guardarEdicion;
+    window.eliminarRegistro = eliminarRegistro;
+    window.cancelarPedido = cancelarPedido;
+
+    
+    // Iniciar en pantalla de bienvenida o tabla inicial
+    mostrarInicio();
+  });
+</script>
+
+</body>
+</html>
