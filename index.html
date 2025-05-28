@@ -100,7 +100,7 @@
     // Mostrar tabla con datos, botones para CRUD y botón para agregar al pedido si aplica
     async function mostrarTabla(nombreTabla) {
       try {
-        const respuesta = await fetch(`http://localhost:3000/api/${nombreTabla}`);
+        const respuesta = await fetch(`https://backend-zr4z.onrender.com/api/${nombreTabla}`);
         if (!respuesta.ok) throw new Error(`Error al cargar la tabla ${nombreTabla}: ${respuesta.status}`);
 
         const datos = await respuesta.json();
@@ -144,7 +144,7 @@
     // Agregar producto a pedido desde tabla productos
     async function agregarProductoAPedido(id, tabla) {
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`);
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}/${id}`);
         if (!res.ok) throw new Error(`No se pudo obtener producto id=${id} de ${tabla}`);
 
         const producto = await res.json();
@@ -199,7 +199,7 @@
       `;
 
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}`);
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}`);
         if (!res.ok) throw new Error(`Error al obtener estructura de ${tabla}`);
 
         const data = await res.json();
@@ -235,7 +235,7 @@
       });
 
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}`, {
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datos),
@@ -253,7 +253,7 @@
     // Editar registro: mostrar formulario con datos existentes
     async function editarRegistro(tabla, id) {
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`);
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}/${id}`);
         if (!res.ok) throw new Error(`Registro no encontrado o error: ${res.status}`);
 
         const registro = await res.json();
@@ -297,7 +297,7 @@
       });
 
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`, {
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datos),
@@ -317,7 +317,7 @@
       if (!confirm(`¿Seguro que quieres eliminar el registro ${id} de la tabla ${tabla}?`)) return;
 
       try {
-        const res = await fetch(`http://localhost:3000/api/${tabla}/${id}`, {
+        const res = await fetch(`https://backend-zr4z.onrender.com/api/${tabla}/${id}`, {
           method: "DELETE",
         });
 
